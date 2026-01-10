@@ -1,0 +1,43 @@
+Web Search Pro - Original Task Instructions
+============================================
+
+Create journaled program for advanced web search in www and darknet -- terminal
+interface - user input are key phrases can be entered for example zeiss + "Kinevo 900s";
+it can search for a longer time, but should give progress outputs and what it does
+inbetween. it should log and put information or files in the current directory. also
+initiate claude.md and write documentation,reference,help
+
+Requirements Summary:
+---------------------
+1. Advanced web search tool
+   - Search clearnet (WWW)
+   - Search darknet (Tor hidden services)
+
+2. Terminal interface
+   - Accept key phrase input
+   - Support advanced syntax: zeiss + "Kinevo 900s"
+
+3. Long-running search support
+   - Progress outputs during search
+   - Status updates showing current activity
+
+4. Journaling and logging
+   - Log all search activities
+   - Save results to current directory
+   - Maintain audit trail
+
+5. Documentation
+   - claude.md with full documentation
+   - Reference guide
+   - Help system
+
+Implementation:
+---------------
+- websearch.py       : Main entry point
+- search_engines.py  : Clearnet & darknet search engines
+- query_parser.py    : Advanced search syntax parser
+- journal.py         : Journaling and logging system
+- terminal_ui.py     : Rich terminal interface with progress
+- config.py          : Configuration settings
+- requirements.txt   : Python dependencies
+- claude.md          : Documentation, reference, help
