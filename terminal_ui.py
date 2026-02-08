@@ -33,17 +33,19 @@ class TerminalUI:
         """Clear the terminal."""
         self.console.clear()
 
-    def print_banner(self, tor_available: bool = False):
+    def print_banner(self, tor_available: bool = False, i2p_available: bool = False):
         """Print application banner with status indicators."""
         tor_status = "[green]ONLINE[/green]" if tor_available else "[red]OFFLINE[/red]"
+        i2p_status = "[green]ONLINE[/green]" if i2p_available else "[dim]OFFLINE[/dim]"
 
         banner = f"""
 ╔═══════════════════════════════════════════════════════════════════╗
-║                    WEB SEARCH PRO v1.0                            ║
+║                    WEB SEARCH PRO v2.0                            ║
 ║           Advanced Web & Darknet Search Tool                      ║
 ╠═══════════════════════════════════════════════════════════════════╣
 ║  Clearnet:  [green]READY[/green]                                              ║
 ║  Darknet:   {tor_status}                                            ║
+║  I2P:       {i2p_status}                                            ║
 ╚═══════════════════════════════════════════════════════════════════╝
         """
         self.console.print(Panel(banner, style="bold cyan", box=box.DOUBLE))
@@ -65,6 +67,8 @@ class TerminalUI:
 | `site:` | Limit to site | `site:zeiss.com` |
 | `filetype:` | File type filter | `filetype:pdf` |
 | `after:` | Date filter | `after:2023-01-01` |
+| `term~3` | Proximity search | `python~3 tutorial` |
+| `term^2` | Boost importance | `important^2` |
 
 ## Commands
 
@@ -73,9 +77,14 @@ class TerminalUI:
 | `/help` | Show this help |
 | `/engines` | List available search engines |
 | `/darknet` | Toggle darknet search |
+| `/i2p` | Toggle I2P network search |
 | `/tor` | Check Tor connection status |
 | `/history` | Show search history |
 | `/export [format]` | Export last results (json/txt/md) |
+| `/report` | Generate HTML/Markdown reports |
+| `/pause` | Pause search and checkpoint |
+| `/resume [id]` | Resume paused search |
+| `/sessions` | List saved sessions |
 | `/clear` | Clear screen |
 | `/quit` | Exit program |
 
@@ -85,6 +94,8 @@ class TerminalUI:
 zeiss + "Kinevo 900"
 "surgical microscope" site:ncbi.nlm.nih.gov filetype:pdf
 neural network -tutorial after:2024-01-01
+machine~5 learning  # terms within 5 words
+important^3 query   # boost "important"
 ```
         """
         md = Markdown(help_text)
@@ -435,4 +446,83 @@ class SearchProgressTracker:
             "engines_failed": errors,
             "total_results": total_results,
             "results_by_engine": self.results_count.copy()
+        }
+
+
+class TieredProgressTracker:
+    """Tracks and displays tiered search progress."""
+    
+    TIER_NAMES = {
+        1: "Authoritative",
+        2: "Major Engines",
+        3: "Extended",
+        4: "Specialized",
+        5: "Tor Network",
+        6: "I2P Network",
+    }
+    
+    def __init__(self, console: Console):
+        self.console = console
+        self.start_time = None
+        self.tier_status: Dict[int, str] = {}
+        self.tier_results: Dict[int, int] = {}
+        self.current_tier = 0
+    
+    def start(self, tiers: List[int]):
+        """Initialize tiered progress tracking."""
+        self.start_time = time.time()
+        self.tier_status = {t: "pending" for t in tiers}
+        self.tier_results = {t: 0 for t in tiers}
+        self._print_header()
+    
+    def _print_header(self):
+        """Print tier progress header."""
+        self.console.print("\n[bold]Tiered Search Progress:[/bold]")
+        for tier in sorted(self.tier_status.keys()):
+            name = self.TIER_NAMES.get(tier, f"Tier {tier}")
+            self.console.print(f"  [dim]○[/dim] Tier {tier}: {name}")
+    
+    def start_tier(self, tier: int, engines: List[str]):
+        """Mark a tier as starting."""
+        self.current_tier = tier
+        self.tier_status[tier] = "running"
+        name = self.TIER_NAMES.get(tier, f"Tier {tier}")
+        self.console.print(f"\n[yellow]▶[/yellow] [bold]Tier {tier}:[/bold] {name} ({len(engines)} engines)")
+    
+    def update_tier(self, tier: int, status: str, results: int = 0, message: str = ""):
+        """Update tier progress."""
+        self.tier_status[tier] = status
+        if results > 0:
+            self.tier_results[tier] = results
+        
+        status_icon = {
+            "pending": "[dim]○[/dim]",
+            "running": "[yellow]◐[/yellow]",
+            "complete": "[green]●[/green]",
+            "skipped": "[dim]⊘[/dim]",
+            "failed": "[red]✗[/red]",
+        }.get(status, "[white]○[/white]")
+        
+        if message:
+            self.console.print(f"  {status_icon} {message}")
+    
+    def complete_tier(self, tier: int, results_count: int, elapsed: float):
+        """Mark a tier as complete."""
+        self.tier_status[tier] = "complete"
+        self.tier_results[tier] = results_count
+        name = self.TIER_NAMES.get(tier, f"Tier {tier}")
+        self.console.print(f"  [green]●[/green] {name}: {results_count} results in {elapsed:.1f}s")
+    
+    def get_summary(self) -> Dict[str, Any]:
+        """Get tiered progress summary."""
+        elapsed = time.time() - self.start_time if self.start_time else 0
+        total_results = sum(self.tier_results.values())
+        completed = sum(1 for s in self.tier_status.values() if s == "complete")
+        
+        return {
+            "elapsed_seconds": elapsed,
+            "tiers_completed": completed,
+            "total_tiers": len(self.tier_status),
+            "total_results": total_results,
+            "results_by_tier": self.tier_results.copy()
         }

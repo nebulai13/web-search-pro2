@@ -1,0 +1,315 @@
+# WebSearchPro Configuration
+# Advanced Clearnet & Darknet Search Engine
+
+application:
+  name: WebSearchPro
+  version: "2.0"
+  log_level: INFO
+
+# Search settings
+search:
+  default_timeout: 600  # 10 minutes
+  max_timeout: 7200     # 2 hours
+  result_limit: 500
+  max_results_per_engine: 50
+  request_delay: 2      # seconds between requests
+  deduplication: true
+  auto_save_results: true
+
+# Tiered search configuration
+tiers:
+  # Tier 1: Official/Authoritative sources
+  tier1_official:
+    enabled: true
+    timeout: 30
+    priority: 1
+    
+  # Tier 2: Major search engines
+  tier2_major:
+    enabled: true
+    timeout: 60
+    priority: 2
+    engines:
+      - duckduckgo
+      - bing
+      - brave
+      
+  # Tier 3: Extended/Specialized
+  tier3_extended:
+    enabled: true
+    timeout: 90
+    priority: 3
+    engines:
+      - yahoo
+      - yandex
+      - qwant
+      - mojeek
+      - ecosia
+      
+  # Tier 4: Domain-specific & Archives
+  tier4_specialized:
+    enabled: true
+    timeout: 120
+    priority: 4
+    engines:
+      - wikipedia
+      - reddit
+      - github
+      - stackoverflow
+      - hackernews
+      - scholar
+      - semantic_scholar
+      - pubmed
+      - archive_org
+      
+  # Tier 5: Tor Hidden Services
+  tier5_tor:
+    enabled: false  # Enable with --darknet flag
+    timeout: 300
+    priority: 5
+    engines:
+      - ahmia
+      - torch
+      - haystack
+      
+  # Tier 6: I2P Network
+  tier6_i2p:
+    enabled: false
+    timeout: 300
+    priority: 6
+    engines:
+      - i2p_search
+
+# Source configuration
+sources:
+  clearnet:
+    enabled: true
+    
+    # Major engines (Tier 2)
+    duckduckgo:
+      enabled: true
+      url: "https://html.duckduckgo.com/html/"
+      rate_limit: 10  # requests per minute
+      
+    bing:
+      enabled: true
+      url: "https://www.bing.com/search"
+      rate_limit: 10
+      
+    brave:
+      enabled: true
+      url: "https://search.brave.com/search"
+      rate_limit: 10
+      
+    # Extended engines (Tier 3)
+    yahoo:
+      enabled: true
+      url: "https://search.yahoo.com/search"
+      rate_limit: 10
+      
+    yandex:
+      enabled: true
+      url: "https://yandex.com/search/"
+      rate_limit: 5
+      
+    qwant:
+      enabled: true
+      url: "https://www.qwant.com/"
+      rate_limit: 10
+      
+    mojeek:
+      enabled: true
+      url: "https://www.mojeek.com/search"
+      rate_limit: 10
+      
+    ecosia:
+      enabled: true
+      url: "https://www.ecosia.org/search"
+      rate_limit: 10
+      
+    # Specialized engines (Tier 4)
+    wikipedia:
+      enabled: true
+      url: "https://en.wikipedia.org/w/api.php"
+      rate_limit: 30
+      
+    reddit:
+      enabled: true
+      url: "https://www.reddit.com/search.json"
+      rate_limit: 10
+      
+    github:
+      enabled: true
+      url: "https://api.github.com/search/repositories"
+      rate_limit: 10
+      
+    stackoverflow:
+      enabled: true
+      url: "https://api.stackexchange.com/2.3/search"
+      rate_limit: 30
+      
+    hackernews:
+      enabled: true
+      url: "https://hn.algolia.com/api/v1/search"
+      rate_limit: 30
+      
+    scholar:
+      enabled: true
+      url: "https://scholar.google.com/scholar"
+      rate_limit: 5
+      
+    semantic_scholar:
+      enabled: true
+      url: "https://api.semanticscholar.org/graph/v1/paper/search"
+      rate_limit: 100
+      
+    pubmed:
+      enabled: true
+      url: "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+      rate_limit: 10
+      
+    archive_org:
+      enabled: true
+      url: "https://archive.org/advancedsearch.php"
+      rate_limit: 10
+
+  darknet:
+    tor:
+      enabled: true
+      socks_host: "127.0.0.1"
+      socks_port: 9050
+      control_port: 9051
+      auto_start: false
+      circuit_rotation: per_tier  # none, per_tier, per_request
+      
+      # Tor search engines (Tier 5)
+      ahmia:
+        enabled: true
+        url: "https://ahmia.fi/search/"
+        requires_tor: false  # Clearnet gateway
+        
+      torch:
+        enabled: true
+        url: "http://torchdeedp3i2jigzjdmfpn5ttjhthh5wbmda2rber7cqskosuh7vqid.onion/search"
+        requires_tor: true
+        
+      haystack:
+        enabled: true
+        url: "http://haystak5njsmn2hqkewecpaxetahtwhsbsa64jom2k22z5afxhnpxfid.onion/"
+        requires_tor: true
+        
+    i2p:
+      enabled: false
+      router_host: "127.0.0.1"
+      http_proxy_port: 4444
+      
+      # I2P search engines (Tier 6)
+      i2p_search:
+        enabled: true
+        url: "http://i2psearch.i2p/"
+
+# Query processing
+query:
+  expansion:
+    enabled: true
+    synonyms: true
+    related_terms: true
+    max_variants: 7
+    
+  operators:
+    and: ["AND", "&&", "&", "+"]
+    or: ["OR", "||", "|"]
+    not: ["NOT", "!", "-"]
+    
+  proximity_default: 10  # Default proximity for ~N operator
+  boost_default: 2       # Default boost for ^ operator
+
+# Result processing
+results:
+  ranking:
+    enabled: true
+    algorithm: multi_factor_composite
+    
+    # Ranking factor weights (0-100)
+    weights:
+      source_authority: 25
+      keyword_density: 15
+      keyword_proximity: 10
+      title_match: 20
+      domain_relevance: 10
+      content_freshness: 10
+      content_quality: 10
+      
+  deduplication:
+    enabled: true
+    method: url_and_content  # url_only, content_only, url_and_content
+    similarity_threshold: 0.85
+    
+  filtering:
+    min_quality_score: 0
+    exclude_domains: []
+    include_domains: []  # Empty means all
+    
+  archive_links:
+    enabled: true
+    services:
+      - archive_org
+      - archive_is
+
+# Caching
+caching:
+  enabled: true
+  directory: "~/.websearchpro/cache"
+  ttl_hours: 24
+  max_size_mb: 1000
+
+# State management (pause/resume)
+state:
+  enabled: true
+  checkpoint_dir: "sessions"
+  auto_checkpoint: true
+  checkpoint_interval: 60  # seconds
+  max_checkpoints: 10
+
+# Logging & journaling
+logging:
+  level: INFO
+  format: json
+  directory: "logs"
+  journal_directory: "journal"
+  results_directory: "results"
+  retention_days: 90
+
+# Privacy & anonymity
+privacy:
+  user_agent_rotation: true
+  request_timing_randomization: true
+  dns_leak_protection: true
+  webrtc_leak_protection: true
+
+# Safety & security
+safety:
+  enabled: true
+  malware_scanning: false  # Requires external scanner
+  url_blacklist_enabled: true
+  url_blacklist_file: "config/blacklist.txt"
+  content_filtering: false
+  warn_before_darknet: true
+  
+# Report generation
+reports:
+  auto_generate: true
+  formats:
+    - markdown
+    - json
+  include_executive_summary: true
+  include_statistics: true
+  include_source_analysis: true
+
+# User agents for rotation
+user_agents:
+  - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+  - "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0"
+  - "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0"
+  - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"

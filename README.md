@@ -1,32 +1,65 @@
-# Web Search Pro
+# Web Search Pro v2.0
 
-An advanced terminal-based search tool for the clearnet and darknet (Tor hidden services) with multi-language support and grep-like boolean syntax.
+An advanced terminal-based search tool for the clearnet, darknet (Tor), and I2P networks with multi-language support, pause/resume capability, intelligent result ranking, and comprehensive reporting.
+
+## Features
+
+- **Multi-Network Search**: Clearnet, Tor (.onion), and I2P (eepsites)
+- **17+ Search Engines**: DuckDuckGo, Bing, Brave, Google Scholar, GitHub, Reddit, and more
+- **Pause/Resume**: Checkpoint searches and resume later
+- **Smart Ranking**: Multi-factor relevance scoring
+- **Deduplication**: Intelligent removal of duplicate results
+- **Reports**: Generate Markdown and HTML reports
+- **Safety Filtering**: URL blacklisting and content filtering
+- **Multi-Language**: Search in 12 languages with automatic translation
 
 ## Quick Start
 
 ```bash
-# Install dependencies (use the SAME python you'll run with)
+# One-line install
+./install.sh
+
+# Or manual install
 python3 -m pip install -r requirements.txt
 
 # Run interactive mode
 python3 websearch.py
 
-# Run a single search
-python3 websearch.py "your search query"
+# Single search with reports
+python3 websearch.py --report "your search query"
 
-# Multi-language search (translates query to 12 languages)
-python3 websearch.py -t "artificial intelligence"
+# Deep search (17 engines)
+python3 websearch.py --deep "research topic"
 ```
 
-## Important: Python Version
+## Installation
 
-If you have multiple Python versions installed, make sure to install dependencies using:
+### Automatic Installation
 
 ```bash
-python3 -m pip install -r requirements.txt
+# Standard install
+./install.sh
+
+# With virtual environment
+./install.sh --venv
+
+# Skip Tor setup
+./install.sh --skip-tor
 ```
 
-**NOT** just `pip install` - as this may install to a different Python version.
+### Manual Installation
+
+```bash
+# Install Python dependencies
+python3 -m pip install -r requirements.txt
+
+# For darknet searches, install Tor:
+# macOS
+brew install tor && brew services start tor
+
+# Linux (Debian/Ubuntu)
+sudo apt install tor && sudo systemctl start tor
+```
 
 ## Command Line Options
 
@@ -36,7 +69,10 @@ python3 -m pip install -r requirements.txt
 | `-f, --filetype` | **File type filter**: pdf, epub, image, video, etc. |
 | `--deep` | **Deep search**: use all 17 engines + specialized indexes |
 | `-t, --translate` | Multi-language search + translate results to English |
-| `-d, --darknet` | Include darknet search engines |
+| `-d, --darknet` | Include darknet search engines (Tor) |
+| `--i2p` | Include I2P network search |
+| `--report` | Generate HTML/Markdown reports |
+| `--resume ID` | Resume a paused search session |
 | `-v, --verbose` | Show verbose output (query parsing, translations) |
 | `-o, --output` | Output format: `json`, `txt`, or `md` |
 | `-e, --engines` | Specific engines to use |
@@ -277,13 +313,83 @@ python3 websearch.py
 | `/help` | Show help information |
 | `/engines` | List available search engines |
 | `/darknet` | Toggle darknet search on/off |
+| `/i2p` | Toggle I2P network search |
 | `/tor` | Check Tor connection status |
+| `/pause` | Pause current search and checkpoint |
+| `/resume [id]` | Resume a paused search session |
+| `/sessions` | List all saved sessions |
+| `/report` | Generate HTML/Markdown reports |
 | `/history` | Show search history |
 | `/export [format]` | Export last results (json/txt/md) |
 | `/status` | Show session statistics |
 | `/verbose` | Toggle verbose mode |
 | `/clear` | Clear screen |
 | `/quit` | Exit program |
+
+## v2.0 Features
+
+### Pause/Resume Searches
+
+Long searches can be paused and resumed later:
+
+```bash
+# During a search, press Ctrl+C or type /pause
+# Session is checkpointed automatically
+
+# Later, resume with:
+python3 websearch.py --resume abc123
+
+# Or in interactive mode:
+/sessions      # List saved sessions
+/resume abc123 # Resume specific session
+```
+
+### Smart Result Processing
+
+Results go through an intelligent processing pipeline:
+
+1. **Safety Filtering**: Removes potentially unsafe URLs
+2. **Deduplication**: Removes duplicate results using URL normalization and content hashing
+3. **Multi-Factor Ranking**: Scores results by:
+   - Source authority (25%)
+   - Title match (20%)
+   - Keyword density (15%)
+   - Keyword proximity (10%)
+   - Domain relevance (10%)
+   - Content freshness (10%)
+   - Content quality (10%)
+
+### Report Generation
+
+Generate comprehensive reports:
+
+```bash
+# CLI
+python3 websearch.py --report "query"
+
+# Interactive
+/report           # Generate Markdown + HTML
+/report markdown  # Markdown only
+/report html      # HTML only
+```
+
+Reports include:
+- Executive summary
+- Results by engine/tier
+- Query analysis
+- Timeline of search
+
+### I2P Network Support
+
+Search I2P eepsites (requires I2P proxy):
+
+```bash
+# Enable I2P
+python3 websearch.py --i2p "query"
+
+# Interactive
+/i2p  # Toggle I2P search
+```
 
 ## Search Engines
 
@@ -445,7 +551,42 @@ python3 -m pip install deep-translator
 
 ## Configuration
 
-Edit `config.py` to customize:
+### YAML Configuration (v2.0)
+
+Edit `config/websearchpro.yaml` for comprehensive settings:
+
+```yaml
+# Search settings
+search:
+  default_timeout: 600
+  max_results_per_engine: 50
+  deduplication: true
+
+# Tiered search configuration
+tiers:
+  tier2_major:
+    enabled: true
+    engines: [duckduckgo, bing, brave]
+  tier5_tor:
+    enabled: false  # Enable with --darknet
+
+# Result ranking weights
+results:
+  ranking:
+    weights:
+      source_authority: 25
+      title_match: 20
+      keyword_density: 15
+
+# Safety settings
+safety:
+  enabled: true
+  url_blacklist_enabled: true
+```
+
+### Legacy Configuration
+
+Edit `config.py` for quick tweaks:
 
 ```python
 # Tor settings
@@ -458,22 +599,39 @@ MAX_RESULTS_PER_ENGINE = 50
 REQUEST_DELAY = 2  # seconds between engines
 ```
 
-## Files
+## Project Structure
 
 ```
 web-search-pro/
-├── websearch.py        # Main entry point
-├── search_engines.py   # Search engine implementations
-├── query_parser.py     # Query syntax parser (grep-like boolean)
-├── journal.py          # Journaling system
-├── terminal_ui.py      # Terminal interface
-├── config.py           # Configuration
-├── requirements.txt    # Dependencies
-├── README.md           # This file
-├── claude.md           # Full API documentation
-├── journal/            # Search journals (auto-created)
-├── logs/               # Log files (auto-created)
-└── results/            # Saved results (auto-created)
+├── websearch.py          # Main entry point (v2.0)
+├── search_engines.py     # Search engine implementations
+├── query_parser.py       # Query syntax parser (enhanced)
+├── journal.py            # Journaling system
+├── terminal_ui.py        # Terminal interface
+├── config.py             # Configuration loader
+├── install.sh            # Installation script
+├── requirements.txt      # Dependencies
+├── README.md             # This file
+├── claude.md             # Full API documentation
+│
+├── config/               # Configuration files
+│   ├── websearchpro.yaml # Master YAML config
+│   └── blacklist.txt     # URL blacklist
+│
+├── src/                  # v2.0 Modules
+│   ├── state_manager.py  # Pause/resume & checkpoints
+│   ├── orchestrator.py   # Tiered search execution
+│   ├── ranker.py         # Multi-factor ranking
+│   ├── deduplicator.py   # Result deduplication
+│   ├── report_generator.py # Report generation
+│   ├── i2p_client.py     # I2P network support
+│   ├── safety.py         # URL blacklist & filtering
+│   └── archive_links.py  # Archive.org links
+│
+├── sessions/             # Saved search sessions
+├── journal/              # Search journals
+├── logs/                 # Log files
+└── results/              # Exported results
 ```
 
 ## Examples
@@ -494,12 +652,22 @@ python3 websearch.py '"deep learning" || "neural network" && python -tensorflow'
 # Darknet search
 python3 websearch.py -d "privacy tools"
 
+# Deep search with reports (v2.0)
+python3 websearch.py --deep --report "research topic"
+
+# Resume a paused search (v2.0)
+python3 websearch.py --resume session_abc123
+
 # Export results as markdown
 python3 websearch.py -o md "rust programming tutorial"
 
-# Combine all options
-python3 websearch.py -t -v -d -o md "cybersecurity best practices"
+# All v2.0 features combined
+python3 websearch.py --deep -d --i2p --report -v "comprehensive search"
 ```
+
+## API Documentation
+
+For full API documentation, module reference, and developer guide, see [claude.md](claude.md).
 
 ## License
 

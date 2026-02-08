@@ -10,3 +10,4 @@ fake-useragent>=1.4.0
 python-dateutil>=2.8.2
 validators>=0.22.0
 deep-translator>=1.11.0
+PyYAML>=6.0.0

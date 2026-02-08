@@ -1,0 +1,12 @@
+# Known malicious or problematic URLs/domains
+# One entry per line
+# Lines starting with # are comments
+
+# Phishing domains
+# (Add known phishing domains here)
+
+# Malware distribution
+# (Add known malware sites here)
+
+# Scam sites
+# (Add known scam sites here)

@@ -6,10 +6,14 @@ Handles advanced search syntax like:
 - Site filters: site:example.com
 - File types: filetype:pdf
 - Date ranges: after:2023-01-01
+- Wildcards: * (multiple chars), ? (single char)
+- Proximity search: "term1 term2"~N
+- Boost operator: term^N
+- Query expansion (synonyms, related terms)
 """
 import re
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from enum import Enum
 
 
@@ -27,6 +31,9 @@ class TokenType(Enum):
     INURL = "inurl"
     AFTER = "after"
     BEFORE = "before"
+    WILDCARD = "wildcard"
+    PROXIMITY = "proximity"
+    BOOST = "boost"
 
 
 @dataclass
@@ -35,6 +42,8 @@ class QueryToken:
     type: TokenType
     value: str
     modifier: Optional[str] = None
+    boost: float = 1.0
+    proximity: int = 0
 
 
 @dataclass
@@ -47,10 +56,14 @@ class ParsedQuery:
     excluded_terms: List[str] = field(default_factory=list)
     phrases: List[str] = field(default_factory=list)
     or_groups: List[List[str]] = field(default_factory=list)  # Groups of OR terms
+    proximity_searches: List[Tuple[str, int]] = field(default_factory=list)  # (phrase, distance)
+    boosted_terms: List[Tuple[str, float]] = field(default_factory=list)  # (term, boost)
+    wildcard_terms: List[str] = field(default_factory=list)
     site_filter: Optional[str] = None
     filetype_filter: Optional[str] = None
     date_after: Optional[str] = None
     date_before: Optional[str] = None
+    expanded_terms: List[str] = field(default_factory=list)  # Synonyms/related terms
 
     def to_search_string(self, engine: str = "default") -> str:
         """
@@ -120,6 +133,10 @@ class ParsedQuery:
             "or_groups": self.or_groups,
             "excluded": self.excluded_terms,
             "phrases": self.phrases,
+            "proximity": self.proximity_searches,
+            "boosted": self.boosted_terms,
+            "wildcards": self.wildcard_terms,
+            "expanded": self.expanded_terms,
             "filters": {
                 "site": self.site_filter,
                 "filetype": self.filetype_filter,
@@ -127,6 +144,96 @@ class ParsedQuery:
                 "date_before": self.date_before,
             }
         }
+
+
+class QueryExpander:
+    """
+    Expands search queries with synonyms and related terms.
+    """
+    
+    # Common synonyms for search expansion
+    SYNONYMS = {
+        # Technology
+        'ai': ['artificial intelligence', 'machine learning', 'ml'],
+        'ml': ['machine learning', 'ai', 'artificial intelligence'],
+        'js': ['javascript'],
+        'javascript': ['js'],
+        'py': ['python'],
+        'python': ['py'],
+        'db': ['database'],
+        'database': ['db'],
+        'api': ['application programming interface', 'web service'],
+        'ui': ['user interface', 'gui'],
+        'ux': ['user experience'],
+        'os': ['operating system'],
+        'cpu': ['processor', 'central processing unit'],
+        'gpu': ['graphics card', 'graphics processing unit'],
+        'ram': ['memory', 'random access memory'],
+        'ssd': ['solid state drive'],
+        'hdd': ['hard drive', 'hard disk'],
+        
+        # Research
+        'research': ['study', 'investigation', 'analysis'],
+        'study': ['research', 'investigation', 'paper'],
+        'paper': ['article', 'publication', 'study'],
+        'tutorial': ['guide', 'howto', 'how-to'],
+        'guide': ['tutorial', 'manual', 'handbook'],
+        'documentation': ['docs', 'manual', 'reference'],
+        'docs': ['documentation', 'manual'],
+        
+        # Actions
+        'install': ['setup', 'configure'],
+        'setup': ['install', 'configure', 'installation'],
+        'fix': ['solve', 'resolve', 'repair'],
+        'error': ['bug', 'issue', 'problem'],
+        'bug': ['error', 'issue', 'defect'],
+        
+        # Business
+        'company': ['corporation', 'firm', 'business'],
+        'product': ['service', 'offering'],
+        'price': ['cost', 'pricing'],
+        'free': ['gratis', 'no cost', 'complimentary'],
+    }
+    
+    # Related terms (broader associations)
+    RELATED_TERMS = {
+        'python': ['django', 'flask', 'pandas', 'numpy'],
+        'javascript': ['nodejs', 'react', 'vue', 'angular'],
+        'database': ['sql', 'mysql', 'postgresql', 'mongodb'],
+        'machine learning': ['neural network', 'deep learning', 'tensorflow', 'pytorch'],
+        'security': ['cybersecurity', 'encryption', 'authentication'],
+        'cloud': ['aws', 'azure', 'gcp', 'kubernetes'],
+    }
+    
+    def __init__(self, enable_synonyms: bool = True, enable_related: bool = False):
+        self.enable_synonyms = enable_synonyms
+        self.enable_related = enable_related
+    
+    def expand_term(self, term: str, max_expansions: int = 3) -> List[str]:
+        """Expand a single term with synonyms."""
+        expansions = []
+        term_lower = term.lower()
+        
+        if self.enable_synonyms and term_lower in self.SYNONYMS:
+            expansions.extend(self.SYNONYMS[term_lower][:max_expansions])
+        
+        if self.enable_related and term_lower in self.RELATED_TERMS:
+            expansions.extend(self.RELATED_TERMS[term_lower][:max_expansions])
+        
+        return list(set(expansions))
+    
+    def expand_query(self, terms: List[str], max_total: int = 10) -> List[str]:
+        """Expand multiple terms."""
+        all_expansions = []
+        
+        for term in terms:
+            expansions = self.expand_term(term)
+            all_expansions.extend(expansions)
+            
+            if len(all_expansions) >= max_total:
+                break
+        
+        return list(set(all_expansions))[:max_total]
 
 
 class QueryParser:
@@ -152,24 +259,35 @@ class QueryParser:
         inurl:keyword       -> Keyword in URL
         after:2023-01-01    -> After date
         before:2023-12-31   -> Before date
+        
+    Advanced syntax:
+        term*               -> Wildcard (any characters)
+        term?               -> Single character wildcard
+        "phrase"~5          -> Proximity search (within 5 words)
+        term^2              -> Boost term importance
 
     Examples:
         python && java              -> Both terms required
         python || java || rust      -> Any of these terms
         "machine learning" && -tutorial -> Exact phrase, exclude tutorial
         AI OR "artificial intelligence" -> Either term
+        zeiss* microscope           -> Wildcard search
+        "optical quality"~5         -> Proximity search
     """
 
     # Regex patterns
     PHRASE_PATTERN = r'"([^"]+)"'
+    PHRASE_PROXIMITY_PATTERN = r'"([^"]+)"~(\d+)'
     SITE_PATTERN = r'site:(\S+)'
     FILETYPE_PATTERN = r'filetype:(\S+)'
     INTITLE_PATTERN = r'intitle:(\S+)'
     INURL_PATTERN = r'inurl:(\S+)'
     DATE_AFTER_PATTERN = r'after:(\d{4}-\d{2}-\d{2})'
     DATE_BEFORE_PATTERN = r'before:(\d{4}-\d{2}-\d{2})'
+    BOOST_PATTERN = r'(\w+)\^(\d+(?:\.\d+)?)'
+    WILDCARD_PATTERN = r'(\w+[*?]\w*|\w*[*?]\w+)'
 
-    def __init__(self):
+    def __init__(self, enable_expansion: bool = False):
         self.operators = {
             'AND': TokenType.AND,
             '&&': TokenType.AND,
@@ -182,13 +300,16 @@ class QueryParser:
             '!': TokenType.NOT,
             '-': TokenType.MINUS,
         }
+        self.enable_expansion = enable_expansion
+        self.expander = QueryExpander() if enable_expansion else None
 
-    def parse(self, query: str) -> ParsedQuery:
+    def parse(self, query: str, expand: bool = None) -> ParsedQuery:
         """
         Parse a search query string into structured format.
 
         Args:
             query: Raw search query string
+            expand: Override expansion setting for this parse
 
         Returns:
             ParsedQuery object with structured data
@@ -196,10 +317,27 @@ class QueryParser:
         result = ParsedQuery(original=query)
         working_query = query.strip()
 
-        # Extract phrases first (quoted strings)
+        # Extract proximity searches first "phrase"~N
+        proximity_matches = re.findall(self.PHRASE_PROXIMITY_PATTERN, working_query)
+        for phrase, distance in proximity_matches:
+            result.proximity_searches.append((phrase, int(distance)))
+        working_query = re.sub(self.PHRASE_PROXIMITY_PATTERN, '', working_query)
+
+        # Extract regular phrases (quoted strings)
         phrases = re.findall(self.PHRASE_PATTERN, working_query)
         result.phrases = phrases
         working_query = re.sub(self.PHRASE_PATTERN, '', working_query)
+
+        # Extract boost operators term^N
+        boost_matches = re.findall(self.BOOST_PATTERN, working_query)
+        for term, boost in boost_matches:
+            result.boosted_terms.append((term, float(boost)))
+        working_query = re.sub(self.BOOST_PATTERN, '', working_query)
+
+        # Extract wildcards
+        wildcards = re.findall(self.WILDCARD_PATTERN, working_query)
+        result.wildcard_terms = wildcards
+        # Don't remove wildcards, let them pass through as terms
 
         # Extract site filter
         site_match = re.search(self.SITE_PATTERN, working_query)
@@ -238,6 +376,12 @@ class QueryParser:
 
         # Process remaining terms
         self._process_terms(working_query, result)
+
+        # Apply query expansion if enabled
+        should_expand = expand if expand is not None else self.enable_expansion
+        if should_expand and self.expander:
+            expansions = self.expander.expand_query(result.required_terms)
+            result.expanded_terms = expansions
 
         return result
 
@@ -379,7 +523,8 @@ def format_query_for_display(parsed: ParsedQuery) -> str:
         lines.append(f"Required terms: {', '.join(parsed.required_terms)}")
 
     if parsed.phrases:
-        lines.append(f"Exact phrases: {', '.join(f'\"{p}\"' for p in parsed.phrases)}")
+        quoted_phrases = ['"{}"'.format(p) for p in parsed.phrases]
+        lines.append(f"Exact phrases: {', '.join(quoted_phrases)}")
 
     if parsed.excluded_terms:
         lines.append(f"Excluded: {', '.join(parsed.excluded_terms)}")
